@@ -1,53 +1,60 @@
+/**
+	Author: Andrew Anderson <aanderso> and Robert Larrick <rlarrick>
+	Class: CS 471
+	Project Assignment: Scheduling
+**/
 #include <unistd.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <semaphore.h>
 
-#define NUM_THREADS 10
+#define NUM_THREADS 100
 pthread_t threads[NUM_THREADS];
 
 int seats = 0;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 sem_t customers;
-pthread_cond_t barber;
+sem_t barber;
 
 
 void *barberBob(void *threadid){
-  int haircuts = 90;
-  while(haircuts < 0){
+  int haircuts = NUM_THREADS-1;
+  while(haircuts > 0){
     sem_wait(&customers);
     pthread_mutex_lock(&mutex);
     seats++;
-    pthread_cond_signal(&barber);
+    sem_post(&barber);
+    haircuts--;
+    printf("cutting some hair, waiting on next customer\n");
     pthread_mutex_unlock(&mutex);
     printf("\n Barber Thread: haircuts = %d, chairs left = %d \n",haircuts,seats);
-    haircuts--;
   }
+  printf("Closing shop, bye!\n");
   pthread_exit(NULL);
 }
 
 void *customer(void *threadid)
 {
-  int haircuts = 10;
+
+  int haircuts = 1;
   while(haircuts > 0){
     pthread_mutex_lock(&mutex);
     if(seats > 0){
       seats--;
+      printf("taking a seat, waiting on barber\n");
       sem_post(&customers);
-      //      pthread_cond_signal(&customers);
-
-      //      sem_wait(&barber);
-      pthread_cond_wait(&barber,&mutex);      
-      pthread_mutex_unlock(&mutex);
-      printf("getting a haircut %d \n", (int)threadid);
       haircuts--;
+  sleep(1);
+      pthread_mutex_unlock(&mutex);
+      sem_wait(&barber);
+      printf("getting a haircut %d \n", (int)threadid);
     }
     else{
-      printf("\n Customer Thread:%d couldn't get a haircut, seats = %d\n",(int)threadid, seats);
       pthread_mutex_unlock(&mutex);
+      printf("\n Customer Thread:%d couldn't get a haircut, seats = %d\n",(int)threadid, seats);
+      sleep(1);
     }
-    sleep(1);
   }
   pthread_exit(NULL);
 }
@@ -59,11 +66,8 @@ int main(int argc, char *argv[])
   }
   seats = atoi(argv[1]);
   printf("number of chairs %d \n", seats);
-
   sem_init(&customers,0,0);
-  pthread_cond_init(&barber,NULL);
-
-
+  sem_init(&barber,0,0);
   int t;
   for(t=0;t<NUM_THREADS;t++){
     printf("Creating thread %d\n", t);
